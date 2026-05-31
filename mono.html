@@ -1,0 +1,1030 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Voya — AI Travel Planner</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Mono:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet">
+<style>
+/* ─────────────────────────────────────────
+   RESET & ROOT
+───────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg:    #07070a;
+  --bg1:   #0e0e12;
+  --bg2:   #16161c;
+  --bg3:   #1c1c24;
+  --bg4:   #222230;
+  --b:     rgba(255,255,255,0.06);
+  --b2:    rgba(255,255,255,0.10);
+  --b3:    rgba(255,255,255,0.16);
+  --text:  #f2f2f5;
+  --sub:   #9898aa;
+  --muted: #55556a;
+  --em:    #bef264;   /* lime */
+  --em1:   rgba(190,242,100,0.08);
+  --em2:   rgba(190,242,100,0.15);
+  --em3:   rgba(190,242,100,0.25);
+  --blue:  #7eb8ff;
+  --blue1: rgba(126,184,255,0.08);
+  --rose:  #ff80b5;
+  --rose1: rgba(255,128,181,0.08);
+  --amber: #fbbf24;
+  --amb1:  rgba(251,191,36,0.08);
+  --vio:   #a78bfa;
+  --vio1:  rgba(167,139,250,0.08);
+  --r:     10px;
+  --r2:    16px;
+  --r3:    22px;
+  --mono:  'DM Mono', monospace;
+  --sans:  'Syne', sans-serif;
+  --trans: all 0.18s cubic-bezier(0.4,0,0.2,1);
+}
+html { font-size: 16px; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  min-height: 100vh;
+  overflow-x: hidden;
+  line-height: 1.5;
+}
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--b3); border-radius: 2px; }
+::selection { background: var(--em2); color: var(--em); }
+
+/* ─────────────────────────────────────────
+   LAYOUT SHELLS
+───────────────────────────────────────── */
+.screen { display: none; min-height: 100vh; }
+.screen.active { display: flex; }
+#screen-config  { flex-direction: column; align-items: center; justify-content: center; padding: 48px 20px; position: relative; overflow: hidden; }
+#screen-loading { flex-direction: column; align-items: center; justify-content: center; padding: 48px 20px; }
+#screen-dash    { flex-direction: column; height: 100vh; overflow: hidden; }
+
+/* ─────────────────────────────────────────
+   BG EFFECTS
+───────────────────────────────────────── */
+.bg-grid {
+  position: absolute; inset: 0; pointer-events: none; z-index: 0;
+  background-image: linear-gradient(var(--b) 1px, transparent 1px), linear-gradient(90deg, var(--b) 1px, transparent 1px);
+  background-size: 52px 52px;
+  mask-image: radial-gradient(ellipse 90% 90% at 50% 50%, black 30%, transparent 100%);
+}
+.bg-glow {
+  position: absolute; pointer-events: none; z-index: 0; border-radius: 50%;
+  filter: blur(100px);
+}
+.glow-tl { width: 500px; height: 500px; top: -150px; left: -150px; background: rgba(190,242,100,0.04); }
+.glow-br { width: 400px; height: 400px; bottom: -100px; right: -100px; background: rgba(126,184,255,0.04); }
+
+/* ─────────────────────────────────────────
+   SHARED ATOMS
+───────────────────────────────────────── */
+.chip {
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 5px 13px; border-radius: 999px; border: 1px solid rgba(190,242,100,0.22);
+  background: var(--em1); color: var(--em);
+  font-size: 10px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase;
+}
+.dot-pulse {
+  width: 5px; height: 5px; border-radius: 50%; background: var(--em);
+  animation: pulse 1.8s ease-in-out infinite;
+  flex-shrink: 0;
+}
+@keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.35;transform:scale(.55)} }
+
+.tag {
+  padding: 4px 10px; border-radius: 999px; border: 1px solid var(--b);
+  background: transparent; font-size: 10px; font-weight: 600; letter-spacing: 0.08em;
+  text-transform: uppercase; color: var(--muted);
+}
+.tag.em { background: var(--em1); border-color: rgba(190,242,100,0.2); color: var(--em); }
+
+.cost-pill {
+  font-family: var(--mono); font-size: 10px; font-weight: 500;
+  padding: 3px 9px; border-radius: 999px;
+  background: var(--em1); color: var(--em); border: 1px solid rgba(190,242,100,0.15);
+  white-space: nowrap; flex-shrink: 0;
+}
+
+/* ─────────────────────────────────────────
+   SCREEN 1 — CONFIGURATOR
+───────────────────────────────────────── */
+.config-inner {
+  position: relative; z-index: 2;
+  width: 100%; max-width: 560px;
+}
+.config-wordmark {
+  font-size: 13px; font-weight: 800; letter-spacing: 0.18em; text-transform: uppercase;
+  color: var(--muted); margin-bottom: 36px; display: flex; align-items: center; gap: 8px;
+}
+.config-wordmark::before {
+  content: ''; display: block; width: 20px; height: 2px;
+  background: linear-gradient(90deg, var(--em), transparent);
+}
+.config-h1 {
+  font-size: 56px; font-weight: 800; letter-spacing: -0.05em; line-height: 0.95;
+  margin-bottom: 14px;
+}
+.config-h1 .accent { color: var(--muted); }
+.config-lead { font-size: 14px; color: var(--sub); line-height: 1.65; margin-bottom: 32px; max-width: 420px; }
+
+.form-card {
+  background: var(--bg2); border: 1px solid var(--b2); border-radius: var(--r3);
+  padding: 28px; display: flex; flex-direction: column; gap: 20px;
+}
+.fgroup { display: flex; flex-direction: column; gap: 8px; }
+.flabel {
+  font-size: 10px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted);
+}
+
+.fsel {
+  padding: 11px 38px 11px 14px; border-radius: var(--r); border: 1px solid var(--b2);
+  background: var(--bg3); color: var(--text); font-family: var(--sans); font-size: 14px;
+  outline: none; cursor: pointer; appearance: none; width: 100%;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath fill='%2355556a' d='M5 6L0 0h10z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 14px center;
+  transition: var(--trans);
+}
+.fsel:hover, .fsel:focus { border-color: var(--b3); }
+.fsel option { background: #16161c; }
+
+/* Slider */
+.slider-wrap { position: relative; height: 20px; display: flex; align-items: center; }
+.slider-track {
+  position: absolute; inset: 0; display: flex; align-items: center; pointer-events: none;
+}
+.slider-bg { height: 3px; width: 100%; background: var(--b2); border-radius: 2px; overflow: visible; position: relative; }
+.slider-fill { height: 100%; border-radius: 2px; background: var(--em); transition: width 0.05s; }
+.slider-thumb-vis {
+  position: absolute; top: 50%; width: 14px; height: 14px; border-radius: 50%;
+  background: var(--em); border: 2px solid var(--bg); transform: translate(-50%, -50%);
+  transition: box-shadow 0.15s; pointer-events: none;
+}
+input[type=range].frange {
+  position: absolute; inset: 0; width: 100%; opacity: 0; cursor: pointer; height: 100%; margin: 0;
+}
+.slider-row { display: flex; align-items: center; gap: 14px; }
+.slider-val { font-family: var(--mono); font-size: 14px; font-weight: 500; color: var(--em); min-width: 54px; text-align: right; }
+
+/* Pills */
+.pill-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.bpill {
+  padding: 8px 18px; border-radius: 999px; border: 1px solid var(--b2);
+  background: transparent; color: var(--sub); font-family: var(--sans); font-size: 12px;
+  font-weight: 600; cursor: pointer; transition: var(--trans); letter-spacing: 0.03em;
+}
+.bpill:hover { border-color: var(--b3); color: var(--text); }
+.bpill.on { background: var(--em1); border-color: rgba(190,242,100,0.3); color: var(--em); }
+
+/* Textarea */
+.ftxt {
+  padding: 12px 14px; border-radius: var(--r); border: 1px solid var(--b2);
+  background: var(--bg3); color: var(--text); font-family: var(--sans); font-size: 13px;
+  line-height: 1.6; outline: none; resize: none; min-height: 88px; width: 100%;
+  transition: var(--trans);
+}
+.ftxt::placeholder { color: var(--muted); }
+.ftxt:hover, .ftxt:focus { border-color: var(--b3); }
+
+/* Deploy button */
+.deploy-btn {
+  width: 100%; padding: 15px 20px; border-radius: var(--r2); cursor: pointer;
+  border: 1px solid rgba(190,242,100,0.28); background: var(--em1);
+  color: var(--em); font-family: var(--sans); font-size: 15px; font-weight: 700;
+  letter-spacing: 0.01em; display: flex; align-items: center; justify-content: center; gap: 10px;
+  transition: var(--trans); position: relative; overflow: hidden;
+}
+.deploy-btn::after {
+  content: ''; position: absolute; inset: 0;
+  background: radial-gradient(ellipse 80% 80% at 50% 50%, rgba(190,242,100,0.12), transparent);
+  opacity: 0; transition: opacity 0.3s;
+}
+.deploy-btn:hover { background: var(--em2); border-color: rgba(190,242,100,0.5); transform: translateY(-2px); }
+.deploy-btn:hover::after { opacity: 1; }
+.deploy-btn:active { transform: translateY(0); }
+
+/* ─────────────────────────────────────────
+   SCREEN 2 — LOADING / TERMINAL
+───────────────────────────────────────── */
+.terminal {
+  width: 100%; max-width: 640px; background: var(--bg1); border: 1px solid var(--b2);
+  border-radius: var(--r3); overflow: hidden; z-index: 2;
+}
+.term-header {
+  display: flex; align-items: center; gap: 8px; padding: 14px 20px;
+  border-bottom: 1px solid var(--b); background: var(--bg2);
+}
+.tdot { width: 10px; height: 10px; border-radius: 50%; }
+.term-name { font-family: var(--mono); font-size: 11px; color: var(--muted); flex: 1; margin-left: 6px; }
+.term-badge { display: flex; align-items: center; gap: 6px; font-family: var(--mono); font-size: 10px; color: var(--em); }
+.term-body { padding: 20px; min-height: 280px; }
+.log-line {
+  display: flex; align-items: flex-start; gap: 10px; padding: 8px 12px; border-radius: 8px;
+  margin-bottom: 6px; border-left: 2px solid transparent;
+  font-family: var(--mono); font-size: 11px; line-height: 1.6;
+  animation: logIn 0.3s ease forwards; opacity: 0;
+}
+@keyframes logIn { from{opacity:0;transform:translateX(-8px)} to{opacity:1;transform:none} }
+.log-line.running { border-left-color: var(--em); background: var(--em1); }
+.log-line.done { border-left-color: rgba(190,242,100,0.18); color: var(--muted); }
+.log-icon { flex-shrink: 0; }
+.log-agent { color: var(--em); }
+.log-line.done .log-agent { color: rgba(190,242,100,0.35); }
+.log-msg { color: var(--sub); }
+.log-line.done .log-msg { color: var(--muted); }
+.spin { display: inline-block; animation: spin 0.75s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.term-progress { height: 2px; background: var(--b2); }
+.term-progress-fill { height: 100%; background: linear-gradient(90deg, var(--em), var(--blue)); transition: width 0.7s ease; }
+.err-banner {
+  margin: 8px 0; padding: 11px 14px; border-radius: var(--r); background: rgba(255,80,80,0.07);
+  border: 1px solid rgba(255,80,80,0.18); color: #ff9090; font-size: 12px; font-family: var(--mono);
+}
+
+/* ─────────────────────────────────────────
+   SCREEN 3 — DASHBOARD
+───────────────────────────────────────── */
+/* Top bar */
+.dash-topbar {
+  background: var(--bg1); border-bottom: 1px solid var(--b);
+  padding: 12px 20px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; flex-shrink: 0;
+}
+.dest-badge {
+  display: flex; align-items: center; gap: 9px;
+  padding: 7px 14px; border-radius: 999px; background: var(--bg2); border: 1px solid var(--b2);
+}
+.dest-badge-name { font-size: 15px; font-weight: 700; letter-spacing: -0.02em; }
+.dest-badge-meta { font-size: 11px; color: var(--sub); }
+.topbar-tags { display: flex; gap: 7px; flex: 1; flex-wrap: wrap; }
+.budget-display { margin-left: auto; display: flex; align-items: baseline; gap: 6px; }
+.budget-display .bl { font-size: 10px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+.budget-display .bv { font-family: var(--mono); font-size: 22px; font-weight: 500; color: var(--em); letter-spacing: -0.03em; }
+
+/* Stats strip */
+.stats-strip {
+  display: flex; gap: 10px; padding: 12px 20px; background: var(--bg1);
+  border-bottom: 1px solid var(--b); flex-shrink: 0; overflow-x: auto;
+}
+.stat-card {
+  background: var(--bg2); border: 1px solid var(--b2); border-radius: var(--r2);
+  padding: 14px 16px; flex: 1; min-width: 160px;
+}
+.stat-card-label { font-size: 9px; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase; color: var(--muted); margin-bottom: 10px; }
+
+/* Budget bars */
+.bbar-row { display: flex; align-items: center; gap: 8px; margin-bottom: 7px; }
+.bbar-lbl { font-size: 10px; color: var(--sub); width: 60px; flex-shrink: 0; text-transform: capitalize; }
+.bbar-track { flex: 1; height: 3px; background: var(--b); border-radius: 2px; overflow: hidden; }
+.bbar-fill { height: 100%; border-radius: 2px; }
+.bbar-pct { font-family: var(--mono); font-size: 10px; color: var(--muted); min-width: 26px; text-align: right; }
+
+/* Pace compact */
+.pace-row { display: flex; align-items: center; gap: 14px; }
+.pace-arc-wrap { flex-shrink: 0; }
+.pace-number { font-family: var(--mono); font-size: 22px; font-weight: 500; color: var(--em); }
+.pace-label { font-size: 10px; color: var(--sub); margin-top: 3px; }
+
+/* Weather compact */
+.wx-row { display: flex; align-items: center; gap: 10px; }
+.wx-icon { font-size: 26px; line-height: 1; }
+.wx-temp { font-family: var(--mono); font-size: 22px; font-weight: 500; }
+.wx-desc { font-size: 11px; color: var(--sub); margin-top: 2px; }
+.wx-extra { display: flex; gap: 10px; margin-top: 8px; }
+.wx-extra span { font-size: 10px; color: var(--muted); }
+
+/* Regen in stats strip */
+.regen-stat-btn {
+  padding: 10px 18px; border-radius: var(--r); border: 1px solid var(--b2);
+  background: transparent; color: var(--sub); font-family: var(--sans); font-size: 11px;
+  font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 7px;
+  transition: var(--trans); white-space: nowrap;
+}
+.regen-stat-btn:hover { background: var(--bg3); color: var(--text); border-color: var(--b3); }
+
+/* Day tabs strip */
+.day-tabs-strip {
+  display: flex; align-items: center; gap: 6px; padding: 10px 20px;
+  background: var(--bg1); border-bottom: 1px solid var(--b);
+  flex-shrink: 0; overflow-x: auto; scrollbar-width: none;
+}
+.day-tabs-strip::-webkit-scrollbar { display: none; }
+.day-tab {
+  padding: 7px 22px; border-radius: 999px; border: 1px solid var(--b2);
+  background: transparent; color: var(--sub); font-family: var(--sans);
+  font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap;
+  transition: var(--trans); letter-spacing: 0.04em; flex-shrink: 0; outline: none;
+}
+.day-tab:hover { background: var(--bg3); color: var(--text); border-color: var(--b3); }
+.day-tab.active { background: var(--em1); border-color: rgba(190,242,100,0.3); color: var(--em); }
+.day-tabs-spacer { flex: 1; min-width: 8px; }
+.ask-ai-chip {
+  padding: 7px 16px; border-radius: 999px; border: 1px solid rgba(190,242,100,0.25);
+  background: var(--em1); color: var(--em); font-family: var(--sans); font-size: 11px;
+  font-weight: 700; cursor: pointer; white-space: nowrap; transition: var(--trans);
+  flex-shrink: 0; outline: none;
+}
+.ask-ai-chip:hover { background: var(--em2); }
+
+/* Activity grid */
+.activity-grid {
+  flex: 1; overflow-y: auto; padding: 16px 20px;
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 10px;
+  align-content: start;
+}
+.tl-day-header {
+  grid-column: 1 / -1; display: flex; align-items: center; gap: 12px;
+  padding-bottom: 6px; border-bottom: 1px solid var(--b); margin-bottom: 2px;
+}
+.tl-day-label { font-size: 10px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); }
+.tl-day-sub { font-size: 12px; font-weight: 600; color: var(--em); }
+
+/* Activity card — grid layout */
+.activity-card {
+  background: var(--bg2); border: 1px solid var(--b); border-radius: var(--r2);
+  padding: 14px; display: flex; flex-direction: column; gap: 9px;
+  transition: var(--trans); cursor: default;
+  animation: cardIn 0.32s ease forwards; opacity: 0;
+  position: relative; overflow: hidden;
+}
+.activity-card::before {
+  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+}
+.activity-card.food::before  { background: var(--amber); }
+.activity-card.cafe::before  { background: var(--rose); }
+.activity-card.act::before   { background: var(--em); }
+.activity-card.sight::before { background: var(--vio); }
+.activity-card.move::before  { background: var(--blue); }
+.activity-card:hover { border-color: var(--b3); transform: translateY(-3px); box-shadow: 0 10px 30px rgba(0,0,0,0.35); }
+@keyframes cardIn { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:none} }
+
+.ac-top { display: flex; align-items: center; justify-content: space-between; }
+.ac-icon { width: 36px; height: 36px; border-radius: 9px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.ac-icon.food    { background: var(--amb1); color: var(--amber); }
+.ac-icon.move    { background: var(--blue1); color: var(--blue); }
+.ac-icon.act     { background: var(--em1); color: var(--em); }
+.ac-icon.cafe    { background: var(--rose1); color: var(--rose); }
+.ac-icon.sight   { background: var(--vio1); color: var(--vio); }
+.ac-time-badge { font-family: var(--mono); font-size: 10px; color: var(--muted); background: var(--bg3); padding: 3px 8px; border-radius: 999px; border: 1px solid var(--b); }
+.ac-title { font-size: 13px; font-weight: 700; letter-spacing: -0.01em; }
+.ac-desc { font-size: 11px; color: var(--sub); line-height: 1.5; flex: 1; }
+.ac-footer { display: flex; align-items: center; justify-content: flex-end; }
+
+/* Shimmer */
+.shimmer {
+  height: 130px; border-radius: var(--r2);
+  background: linear-gradient(90deg, var(--bg2) 25%, var(--bg3) 50%, var(--bg2) 75%);
+  background-size: 200% 100%; animation: shim 1.5s infinite;
+}
+@keyframes shim { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+
+/* Chat drawer — fixed bottom-right, always peeking */
+.chat-drawer {
+  position: fixed; bottom: 0; right: 24px; width: 340px;
+  background: var(--bg2); border: 1px solid var(--b2);
+  border-top-left-radius: var(--r2); border-top-right-radius: var(--r2);
+  z-index: 100; display: flex; flex-direction: column;
+  transform: translateY(calc(100% - 46px));
+  transition: transform 0.28s cubic-bezier(0.4,0,0.2,1);
+  max-height: 420px; box-shadow: 0 -4px 32px rgba(0,0,0,0.4);
+}
+.chat-drawer.open { transform: translateY(0); }
+.chat-drawer-handle {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 16px; cursor: pointer; border-bottom: 1px solid var(--b);
+  flex-shrink: 0; user-select: none;
+}
+.chat-drawer-title {
+  font-size: 11px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--sub); display: flex; align-items: center; gap: 8px;
+}
+.chat-drawer-arrow { font-size: 10px; color: var(--muted); transition: transform 0.28s; display: inline-block; }
+.chat-drawer.open .chat-drawer-arrow { transform: rotate(180deg); }
+.chat-messages { flex: 1; overflow-y: auto; padding: 10px 14px; display: flex; flex-direction: column; gap: 7px; min-height: 100px; }
+.chat-msg { max-width: 90%; padding: 8px 11px; border-radius: 10px; font-size: 11px; line-height: 1.55; }
+.chat-msg.user { align-self: flex-end; background: var(--em1); color: var(--em); border: 1px solid rgba(190,242,100,0.18); }
+.chat-msg.ai { align-self: flex-start; background: var(--bg3); border: 1px solid var(--b); color: var(--sub); }
+.chat-msg.ai.thinking { color: var(--muted); font-style: italic; }
+.chat-footer { padding: 10px 12px; border-top: 1px solid var(--b); display: flex; gap: 7px; flex-shrink: 0; }
+.chat-input-field { flex: 1; background: var(--bg3); border: 1px solid var(--b2); border-radius: 8px; color: var(--text); font-family: var(--sans); font-size: 12px; padding: 8px 11px; outline: none; transition: var(--trans); }
+.chat-input-field:focus { border-color: var(--b3); }
+.chat-input-field::placeholder { color: var(--muted); }
+.chat-send-btn { padding: 8px 12px; background: var(--em1); border: 1px solid rgba(190,242,100,0.22); border-radius: 8px; color: var(--em); font-family: var(--sans); font-size: 11px; font-weight: 700; cursor: pointer; white-space: nowrap; transition: var(--trans); }
+.chat-send-btn:hover { background: var(--em2); }
+.chat-send-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* ─────────────────────────────────────────
+   ICONS (inline SVG helpers)
+───────────────────────────────────────── */
+.icon { display: block; flex-shrink: 0; }
+
+/* ─────────────────────────────────────────
+   RESPONSIVE
+───────────────────────────────────────── */
+@media (max-width: 900px) {
+  .activity-grid { grid-template-columns: 1fr 1fr; }
+  .stats-strip { padding: 10px 12px; gap: 8px; }
+  .stat-card { min-width: 148px; padding: 12px; }
+  .chat-drawer { width: calc(100% - 32px); right: 16px; }
+}
+@media (max-width: 560px) {
+  .activity-grid { grid-template-columns: 1fr; padding: 10px 12px; }
+  .config-h1 { font-size: 38px; }
+}
+</style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════
+     SCREEN 1 — CONFIGURATOR
+═══════════════════════════════════════ -->
+<section id="screen-config" class="screen active">
+  <div class="bg-grid"></div>
+  <div class="bg-glow glow-tl"></div>
+  <div class="bg-glow glow-br"></div>
+
+  <div class="config-inner">
+    <div class="config-wordmark">Voya</div>
+    <h1 class="config-h1">Where are<br>you <span class="accent">going?</span></h1>
+    <p class="config-lead">Describe your vibe. Our multi-agent AI builds a fully personalised, day-by-day itinerary — real places, real costs, real culture.</p>
+
+    <div class="form-card">
+      <!-- API Key -->
+      <div class="fgroup">
+        <label class="flabel">Groq API Key <span style="color:var(--muted);font-weight:400;text-transform:none;letter-spacing:0">— saved locally, never sent anywhere except Groq</span></label>
+        <input type="password" class="fsel" id="key-input" placeholder="gsk_…" autocomplete="off" style="background-image:none;">
+      </div>
+
+      <!-- Destination -->
+      <div class="fgroup">
+        <label class="flabel">Destination</label>
+        <input type="text" class="fsel" id="dest-input" placeholder="Any city — Tokyo, Marrakech, Buenos Aires…" autocomplete="off" style="background-image:none;">
+      </div>
+
+      <!-- Duration -->
+      <div class="fgroup">
+        <label class="flabel">Duration</label>
+        <div class="slider-row">
+          <div class="slider-wrap" style="flex:1">
+            <div class="slider-track">
+              <div class="slider-bg">
+                <div class="slider-fill" id="slider-fill" style="width:28.57%"></div>
+                <div class="slider-thumb-vis" id="slider-thumb" style="left:28.57%"></div>
+              </div>
+            </div>
+            <input type="range" class="frange" id="dur-range" min="1" max="7" value="3" step="1">
+          </div>
+          <div class="slider-val" id="dur-label">3 days</div>
+        </div>
+      </div>
+
+      <!-- Budget -->
+      <div class="fgroup">
+        <label class="flabel">Budget Tier</label>
+        <div class="pill-row">
+          <div class="bpill" data-b="Budget">Budget</div>
+          <div class="bpill on" data-b="Balanced">Balanced</div>
+          <div class="bpill" data-b="Luxury">Luxury</div>
+        </div>
+      </div>
+
+      <!-- Vibe -->
+      <div class="fgroup">
+        <label class="flabel">Your Vibe</label>
+        <textarea class="ftxt" id="vibe-input" placeholder="e.g. Techwear shopping, underground jazz bars, minimalist third-wave coffee, hidden ramen joints, rooftop gardens at sunset…"></textarea>
+      </div>
+
+      <!-- Deploy -->
+      <button class="deploy-btn" id="deploy-btn">
+        <svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+        Deploy AI Itinerary Agent
+      </button>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════
+     SCREEN 2 — LOADING / TERMINAL
+═══════════════════════════════════════ -->
+<section id="screen-loading" class="screen">
+  <div class="bg-grid"></div>
+  <div class="terminal">
+    <div class="term-header">
+      <div class="tdot" style="background:#ff5f57"></div>
+      <div class="tdot" style="background:#febc2e"></div>
+      <div class="tdot" style="background:#28c840"></div>
+      <div class="term-name" id="term-name">agent-network · initializing…</div>
+      <div class="term-badge"><div class="dot-pulse"></div>RUNNING</div>
+    </div>
+    <div class="term-body" id="log-body"></div>
+    <div class="term-progress"><div class="term-progress-fill" id="prog-fill" style="width:0%"></div></div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════
+     SCREEN 3 — DASHBOARD
+═══════════════════════════════════════ -->
+<section id="screen-dash" class="screen">
+  <!-- Top bar -->
+  <div class="dash-topbar">
+    <div class="dest-badge">
+      <svg class="icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+      <span class="dest-badge-name" id="hdr-dest">—</span>
+      <span class="dest-badge-meta" id="hdr-meta">—</span>
+    </div>
+    <div class="topbar-tags">
+      <div class="tag em"><div class="dot-pulse" style="display:inline-block;margin-right:4px;vertical-align:middle"></div>AI-Generated</div>
+      <div class="tag" id="hdr-pace">—</div>
+    </div>
+    <div class="budget-display">
+      <span class="bl">Trip Budget</span>
+      <span class="bv" id="budget-counter">$0</span>
+    </div>
+  </div>
+
+  <!-- Stats strip — horizontal across full width -->
+  <div class="stats-strip">
+    <div class="stat-card">
+      <div class="stat-card-label">Budget Distribution</div>
+      <div id="budget-bars"></div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-card-label">Daily Pace</div>
+      <div class="pace-row">
+        <div class="pace-arc-wrap">
+          <svg width="72" height="38" viewBox="0 0 140 74">
+            <defs>
+              <linearGradient id="paceGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" stop-color="#7eb8ff"/>
+                <stop offset="100%" stop-color="#bef264"/>
+              </linearGradient>
+            </defs>
+            <path d="M14 68 A56 56 0 0 1 126 68" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="7" stroke-linecap="round"/>
+            <path id="pace-arc" d="M14 68 A56 56 0 0 1 126 68" fill="none" stroke="url(#paceGrad)" stroke-width="7" stroke-linecap="round" stroke-dasharray="176" stroke-dashoffset="88"/>
+          </svg>
+        </div>
+        <div>
+          <div class="pace-number" id="pace-val">—</div>
+          <div class="pace-label" id="pace-cap">steps / day</div>
+        </div>
+      </div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-card-label">Local Weather</div>
+      <div class="wx-row">
+        <div class="wx-icon" id="wx-icon">⛅</div>
+        <div>
+          <div class="wx-temp" id="wx-temp">—</div>
+          <div class="wx-desc" id="wx-desc">—</div>
+        </div>
+      </div>
+      <div class="wx-extra">
+        <span id="wx-d1">💧 —</span>
+        <span id="wx-d2">🌬 —</span>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;flex-shrink:0;padding-left:4px">
+      <button class="regen-stat-btn" id="regen-btn">
+        <svg class="icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+        Regenerate
+      </button>
+    </div>
+  </div>
+
+  <!-- Day tabs -->
+  <div class="day-tabs-strip" id="day-nav"></div>
+
+  <!-- Activity grid — scrollable card grid -->
+  <div class="activity-grid" id="timeline">
+    <div class="shimmer"></div>
+    <div class="shimmer"></div>
+    <div class="shimmer"></div>
+    <div class="shimmer" style="opacity:0.5"></div>
+  </div>
+
+  <!-- Chat drawer — peeks at bottom, click to expand -->
+  <div class="chat-drawer" id="chat-drawer">
+    <div class="chat-drawer-handle" id="chat-handle">
+      <div class="chat-drawer-title">
+        <div class="dot-pulse"></div>
+        Ask about your trip
+      </div>
+      <span class="chat-drawer-arrow" id="chat-arrow">▲</span>
+    </div>
+    <div class="chat-messages" id="chat-msgs">
+      <div class="chat-msg ai">Hi! Your itinerary is ready. Ask me anything — visa tips, transport hacks, what to pack…</div>
+    </div>
+    <div class="chat-footer">
+      <input class="chat-input-field" id="chat-input" placeholder="Any tips for Day 1?" autocomplete="off">
+      <button class="chat-send-btn" id="chat-send">Ask ↗</button>
+    </div>
+  </div>
+</section>
+
+<script>
+// ─────────────────────────────────────────
+//  STATE
+// ─────────────────────────────────────────
+const GROQ_MODEL = 'llama-3.3-70b-versatile';
+
+const state = {
+  dest: '', days: 3, budget: 'Balanced', vibe: '', apiKey: '',
+  itinerary: null, activeDay: 0, chatHistory: [], budgetTotal: 0
+};
+
+// Pre-fill key from localStorage
+window.addEventListener('DOMContentLoaded', () => {
+  const saved = localStorage.getItem('groq_key');
+  if (saved) $('key-input').value = saved;
+});
+
+// ─────────────────────────────────────────
+//  UTILS
+// ─────────────────────────────────────────
+const $ = id => document.getElementById(id);
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  $(id).classList.add('active');
+}
+
+// ─────────────────────────────────────────
+//  SCREEN 1 CONTROLS
+// ─────────────────────────────────────────
+$('dur-range').addEventListener('input', () => {
+  const v = parseInt($('dur-range').value);
+  const pct = ((v - 1) / 6) * 100;
+  $('slider-fill').style.width = pct + '%';
+  $('slider-thumb').style.left = pct + '%';
+  $('dur-label').textContent = v + ' day' + (v > 1 ? 's' : '');
+  state.days = v;
+});
+
+document.querySelectorAll('.bpill').forEach(p => {
+  p.addEventListener('click', () => {
+    document.querySelectorAll('.bpill').forEach(x => x.classList.remove('on'));
+    p.classList.add('on');
+    state.budget = p.dataset.b;
+  });
+});
+
+$('deploy-btn').addEventListener('click', () => {
+  const key = $('key-input').value.trim();
+  if (!key || !key.startsWith('gsk_')) {
+    $('key-input').focus(); $('key-input').style.borderColor = 'var(--rose)'; return;
+  }
+  $('key-input').style.borderColor = '';
+  const dest = $('dest-input').value.trim();
+  if (!dest) { $('dest-input').focus(); $('dest-input').style.borderColor = 'var(--rose)'; return; }
+  $('dest-input').style.borderColor = '';
+  state.apiKey = key;
+  state.dest = dest;
+  state.vibe = $('vibe-input').value.trim();
+  localStorage.setItem('groq_key', key);
+  $('term-name').textContent = `agent-network · ${state.dest.toLowerCase().replace(/\s+/g,'-')}-${state.days}d`;
+  showScreen('screen-loading');
+  runPipeline();
+});
+
+// ─────────────────────────────────────────
+//  SCREEN 2 — AGENT LOG PIPELINE
+// ─────────────────────────────────────────
+const LOGS = [
+  { icon: '⚡', agent: 'Core Routing Agent',      msg: 'Initializing geographical matrices and district topology maps…' },
+  { icon: '🔍', agent: 'Scraping Agent',           msg: 'Parsing live transit data, pedestrian routes, footpath density…' },
+  { icon: '🍽', agent: 'Culinary Engine',          msg: `Filtering restaurants and hidden gems matching your vibe profile…` },
+  { icon: '🎌', agent: 'Cultural Context Module', msg: 'Injecting local events, seasonal data, museum opening hours…' },
+  { icon: '🤖', agent: 'Groq · Llama 3.3 70B',      msg: 'Generating bespoke day-by-day itinerary via structured output…' },
+  { icon: '📦', agent: 'Output Builder',           msg: 'Validating JSON schema, optimising pace and budget allocation…' },
+];
+
+async function runPipeline() {
+  const body = $('log-body');
+  body.innerHTML = '';
+  $('prog-fill').style.width = '0%';
+
+  for (let i = 0; i < LOGS.length; i++) {
+    const l = LOGS[i];
+    const el = document.createElement('div');
+    el.className = 'log-line running';
+    el.innerHTML = `<span class="log-icon"><span class="spin">◌</span></span><span class="log-agent">[${l.agent}]</span>&nbsp;<span class="log-msg">${l.msg}</span>`;
+    body.appendChild(el);
+    $('prog-fill').style.width = ((i + 1) / LOGS.length * 80) + '%';
+    await sleep(460);
+    el.classList.replace('running', 'done');
+    el.querySelector('.spin').textContent = '✓';
+    el.querySelector('.spin').classList.remove('spin');
+  }
+
+  await generateItinerary();
+}
+
+// ─────────────────────────────────────────
+//  CLAUDE API CALL
+// ─────────────────────────────────────────
+async function generateItinerary() {
+  $('prog-fill').style.width = '90%';
+  const vibeText = state.vibe || 'a balanced mix of culture, local food, and authentic hidden gems';
+  const prompt = `You are an expert travel planner. Generate a ${state.days}-day itinerary for ${state.dest} for a traveler on a ${state.budget.toLowerCase()} budget whose vibe is: "${vibeText}".
+
+Return ONLY valid JSON — no markdown, no explanation, no backticks:
+{
+  "totalBudgetUSD": <number>,
+  "budgetBreakdown": {"food": <0-100>, "transport": <0-100>, "activities": <0-100>},
+  "stepsPerDay": <8000-18000>,
+  "weather": {"temp": "<e.g. 24°C>", "desc": "<short>", "humidity": "<e.g. 68%>", "wind": "<e.g. 14 km/h>"},
+  "days": [
+    {
+      "label": "Day 01",
+      "subtitle": "<neighborhood/theme, 3-5 words>",
+      "activities": [
+        {
+          "time": "HH:MM",
+          "type": "<food|move|act|cafe|sight>",
+          "icon": "<coffee|camera|map|utensils|zap|music|shopping|eye|train|wine|sun|star>",
+          "title": "<max 40 chars>",
+          "desc": "<vivid 1 sentence, max 80 chars>",
+          "cost": "<e.g. ¥1,200 ($8) or Free>"
+        }
+      ]
+    }
+  ]
+}
+
+Exactly ${state.days} days, 5-6 activities each. Make it vivid, specific, locally authentic.`;
+
+  try {
+    const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${state.apiKey}` },
+      body: JSON.stringify({
+        model: GROQ_MODEL,
+        max_tokens: 4000,
+        temperature: 0.7,
+        messages: [{ role: 'user', content: prompt }]
+      })
+    });
+    const data = await res.json();
+    let raw = (data.choices?.[0]?.message?.content || '').trim();
+    raw = raw.replace(/```json|```/g, '').trim();
+    state.itinerary = JSON.parse(raw);
+  } catch (e) {
+    $('log-body').insertAdjacentHTML('beforeend', `<div class="err-banner">⚠ API unavailable — using built-in demo data. (${e.message})</div>`);
+    state.itinerary = demoData();
+    await sleep(600);
+  }
+
+  $('prog-fill').style.width = '100%';
+  await sleep(250);
+  buildDashboard();
+  showScreen('screen-dash');
+}
+
+// ─────────────────────────────────────────
+//  DEMO DATA FALLBACK
+// ─────────────────────────────────────────
+function demoData() {
+  const dest = state.dest;
+  return {
+    totalBudgetUSD: 580,
+    budgetBreakdown: { food: 42, transport: 18, activities: 40 },
+    stepsPerDay: 14200,
+    weather: { temp: '24°C', desc: 'Partly cloudy', humidity: '68%', wind: '14 km/h' },
+    days: [
+      { label: 'Day 01', subtitle: 'Old Town & Markets', activities: [
+        { time:'07:30', type:'cafe',  icon:'coffee',   title:'Morning at a local roaster',      desc:'Single-origin pour-over in a minimalist, light-filled space.',  cost:'$7' },
+        { time:'09:00', type:'sight', icon:'camera',   title:'Landmark at dawn',                desc:'Beat the crowds. Architecture glows in soft morning light.',    cost:'Free' },
+        { time:'11:00', type:'act',   icon:'shopping', title:'Central market wander',           desc:'Street food, artisan goods, local colour at every stall.',      cost:'$22' },
+        { time:'13:00', type:'food',  icon:'utensils', title:'Lunch: local institution',        desc:'The spot everyone swears by. Order the house special.',         cost:'$18' },
+        { time:'15:30', type:'act',   icon:'zap',      title:'Neighbourhood deep dive',         desc:'Boutiques, galleries, indie bookshops, spontaneous discoveries.',cost:'$30' },
+        { time:'19:30', type:'food',  icon:'wine',     title:'Dinner: hidden gem',              desc:'No sign outside. Eight tables. The pasta changes daily.',       cost:'$28' },
+      ]},
+      { label: 'Day 02', subtitle: 'Culture & Parks', activities: [
+        { time:'08:00', type:'cafe',  icon:'coffee',   title:'Neighbourhood café',              desc:'Family-run, third generation. Try the house blend.',            cost:'$5' },
+        { time:'09:30', type:'sight', icon:'eye',      title:'World-class museum',              desc:'Plan two hours minimum. The permanent collection alone stuns.', cost:'$15' },
+        { time:'12:30', type:'food',  icon:'utensils', title:'Museum café lunch',               desc:'Surprisingly excellent. The terrace has the best views.',       cost:'$14' },
+        { time:'14:30', type:'act',   icon:'map',      title:'Guided walking tour',             desc:'A local architect leads. Stories you won\'t read in guidebooks.',cost:'$22' },
+        { time:'17:00', type:'sight', icon:'sun',      title:'Hilltop viewpoint',               desc:'Golden hour paints the city. Bring a layer for the breeze.',   cost:'Free' },
+        { time:'20:00', type:'food',  icon:'music',    title:'Jazz bar & dinner',               desc:'Live quartet every night. Kitchen stays open until midnight.',  cost:'$35' },
+      ]},
+      { label: 'Day 03', subtitle: 'Local Life & Farewell', activities: [
+        { time:'07:00', type:'sight', icon:'sun',      title:'Dawn in the park',                desc:'Locals do tai chi, walk dogs, read papers. Peaceful.',          cost:'Free' },
+        { time:'09:30', type:'cafe',  icon:'coffee',   title:'Bakery breakfast',                desc:'Queue forms at 9am. The croissants are worth every minute.',   cost:'$9' },
+        { time:'11:00', type:'act',   icon:'shopping', title:'Design district browse',          desc:'Independent labels, ceramics, curated vintage. Very giftable.',cost:'$40' },
+        { time:'13:30', type:'food',  icon:'utensils', title:'Long farewell lunch',             desc:'Order the tasting menu. Take your time. You earned it.',        cost:'$45' },
+        { time:'16:00', type:'act',   icon:'camera',   title:'Photography walk',                desc:'The light hits differently in late afternoon. Fill your camera.',cost:'Free' },
+        { time:'19:00', type:'food',  icon:'star',     title:'Farewell dinner',                 desc:'Rooftop table. City below. Worth the splurge on your last night.',cost:'$55' },
+      ]},
+    ].slice(0, state.days)
+  };
+}
+
+// ─────────────────────────────────────────
+//  BUILD DASHBOARD
+// ─────────────────────────────────────────
+function buildDashboard() {
+  const it = state.itinerary;
+  state.budgetTotal = it.totalBudgetUSD;
+  state.chatHistory = [];
+
+  // Top bar
+  $('hdr-dest').textContent = state.dest;
+  $('hdr-meta').textContent = `${state.days} days · ${state.budget}`;
+  $('hdr-pace').textContent = `~${Math.round(it.stepsPerDay / 1000)}k steps/day`;
+
+  // Budget counter animation
+  let c = 0;
+  const step = state.budgetTotal / 55;
+  const t = setInterval(() => {
+    c = Math.min(c + step, state.budgetTotal);
+    $('budget-counter').textContent = '$' + Math.round(c);
+    if (c >= state.budgetTotal) clearInterval(t);
+  }, 25);
+
+  // Budget bars
+  const colors = { food: 'var(--amber)', transport: 'var(--blue)', activities: 'var(--em)' };
+  $('budget-bars').innerHTML = Object.entries(it.budgetBreakdown).map(([k, v]) =>
+    `<div class="bbar-row">
+       <div class="bbar-lbl">${k}</div>
+       <div class="bbar-track"><div class="bbar-fill" style="width:${v}%;background:${colors[k]||'var(--sub)'}"></div></div>
+       <div class="bbar-pct">${v}%</div>
+     </div>`
+  ).join('');
+
+  // Pace arc
+  const pct = Math.max(0, Math.min(1, (it.stepsPerDay - 4000) / 16000));
+  $('pace-arc').setAttribute('stroke-dashoffset', (176 - pct * 176).toFixed(1));
+  $('pace-val').textContent = it.stepsPerDay.toLocaleString();
+  $('pace-cap').textContent = it.stepsPerDay > 12000 ? 'High Pace' : it.stepsPerDay > 8000 ? 'Moderate Pace' : 'Easy Pace';
+
+  // Weather with auto emoji
+  const wdesc = (it.weather.desc || '').toLowerCase();
+  $('wx-icon').textContent = wdesc.includes('sun') || wdesc.includes('clear') ? '☀️'
+    : wdesc.includes('rain') || wdesc.includes('shower') ? '🌧️'
+    : wdesc.includes('snow') ? '❄️'
+    : wdesc.includes('storm') || wdesc.includes('thunder') ? '⛈️'
+    : wdesc.includes('fog') || wdesc.includes('mist') ? '🌫️'
+    : wdesc.includes('wind') ? '🌬️' : '⛅';
+  $('wx-temp').textContent = it.weather.temp;
+  $('wx-desc').textContent = it.weather.desc;
+  $('wx-d1').textContent = '💧 ' + (it.weather.humidity || '65%');
+  $('wx-d2').textContent = '🌬 ' + (it.weather.wind || '12 km/h');
+
+  // Day tabs
+  const nav = $('day-nav');
+  nav.innerHTML = '';
+  it.days.forEach((d, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'day-tab' + (i === 0 ? ' active' : '');
+    btn.textContent = `Day ${i + 1}`;
+    btn.addEventListener('click', () => switchDay(i));
+    nav.appendChild(btn);
+  });
+  const spacer = document.createElement('div');
+  spacer.className = 'day-tabs-spacer';
+  nav.appendChild(spacer);
+  const askBtn = document.createElement('button');
+  askBtn.className = 'ask-ai-chip';
+  askBtn.textContent = 'Ask AI ↗';
+  askBtn.addEventListener('click', () => {
+    $('chat-drawer').classList.add('open');
+    setTimeout(() => $('chat-input').focus(), 300);
+  });
+  nav.appendChild(askBtn);
+
+  // Chat intro
+  $('chat-msgs').innerHTML = `<div class="chat-msg ai">Your ${state.days}-day ${state.dest} itinerary is ready! Ask me anything — transport tips, dress code, reservation advice, or local secrets.</div>`;
+
+  // Reset chat drawer
+  $('chat-drawer').classList.remove('open');
+
+  state.activeDay = 0;
+  renderDay(0);
+}
+
+// ─────────────────────────────────────────
+//  ICON MAP
+// ─────────────────────────────────────────
+const ICONS = {
+  coffee:   `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/></svg>`,
+  camera:   `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>`,
+  map:      `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></svg>`,
+  utensils: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2"/><path d="M7 2v20"/><path d="M21 15V2a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3zm0 0v7"/></svg>`,
+  zap:      `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>`,
+  music:    `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>`,
+  shopping: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>`,
+  eye:      `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>`,
+  train:    `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="16" rx="2"/><path d="M4 11h16M12 3v8"/><circle cx="8" cy="15" r="1"/><circle cx="16" cy="15" r="1"/><path d="M8 19l-2 3M18 22l-2-3"/></svg>`,
+  wine:     `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 22h8M7 10h10M12 15v7"/><path d="M12 15a5 5 0 0 0 5-5c0-2-.5-4-2-8H9c-1.5 4-2 6-2 8a5 5 0 0 0 5 5z"/></svg>`,
+  sun:      `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/></svg>`,
+  star:     `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>`,
+};
+const TYPE_CLASS = { food:'food', move:'move', act:'act', cafe:'cafe', sight:'sight' };
+
+// ─────────────────────────────────────────
+//  RENDER DAY
+// ─────────────────────────────────────────
+function renderDay(idx) {
+  const day = state.itinerary.days[idx];
+  if (!day) return;
+  const tl = $('timeline');
+  tl.innerHTML = `<div class="tl-day-header"><span class="tl-day-label">${day.label}</span><span class="tl-day-sub">${day.subtitle || ''}</span></div>`;
+  day.activities.forEach((act, i) => {
+    const card = document.createElement('div');
+    const typeCls = TYPE_CLASS[act.type] || 'act';
+    card.className = `activity-card ${typeCls}`;
+    card.style.animationDelay = (i * 55) + 'ms';
+    const iconSvg = ICONS[act.icon] || ICONS.star;
+    card.innerHTML = `
+      <div class="ac-top">
+        <div class="ac-icon ${typeCls}">${iconSvg}</div>
+        <div class="ac-time-badge">${act.time}</div>
+      </div>
+      <div class="ac-title">${act.title}</div>
+      <div class="ac-desc">${act.desc}</div>
+      <div class="ac-footer"><div class="cost-pill">${act.cost}</div></div>`;
+    tl.appendChild(card);
+  });
+}
+
+// ─────────────────────────────────────────
+//  SWITCH DAY
+// ─────────────────────────────────────────
+function switchDay(idx) {
+  state.activeDay = idx;
+  document.querySelectorAll('.day-tab').forEach((btn, i) => {
+    btn.classList.toggle('active', i === idx);
+  });
+  renderDay(idx);
+}
+
+// ─────────────────────────────────────────
+//  CHAT
+// ─────────────────────────────────────────
+async function sendChat() {
+  const inp = $('chat-input');
+  const msg = inp.value.trim();
+  if (!msg) return;
+  inp.value = '';
+  $('chat-send').disabled = true;
+
+  const msgs = $('chat-msgs');
+  const uEl = document.createElement('div');
+  uEl.className = 'chat-msg user';
+  uEl.textContent = msg;
+  msgs.appendChild(uEl);
+
+  const aEl = document.createElement('div');
+  aEl.className = 'chat-msg ai thinking';
+  aEl.textContent = 'thinking…';
+  msgs.appendChild(aEl);
+  msgs.scrollTop = msgs.scrollHeight;
+
+  state.chatHistory.push({ role: 'user', content: msg });
+
+  try {
+    const sysMsg = { role: 'system', content: `You are a knowledgeable travel concierge for a ${state.days}-day trip to ${state.dest} on a ${state.budget} budget. Traveler vibe: "${state.vibe || 'balanced culture and food'}". Be concise, warm, and locally specific. Max 2-3 sentences.` };
+    const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${state.apiKey}` },
+      body: JSON.stringify({
+        model: GROQ_MODEL,
+        max_tokens: 350,
+        messages: [sysMsg, ...state.chatHistory]
+      })
+    });
+    const data = await res.json();
+    const reply = (data.choices?.[0]?.message?.content || '').trim() || 'No response — please try again.';
+    state.chatHistory.push({ role: 'assistant', content: reply });
+    aEl.className = 'chat-msg ai';
+    aEl.textContent = reply;
+  } catch (e) {
+    aEl.className = 'chat-msg ai';
+    aEl.textContent = 'Couldn\'t reach the AI right now. Try again in a moment.';
+  }
+
+  $('chat-send').disabled = false;
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+$('chat-send').addEventListener('click', sendChat);
+$('chat-input').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChat(); } });
+$('chat-handle').addEventListener('click', () => { $('chat-drawer').classList.toggle('open'); });
+
+// ─────────────────────────────────────────
+//  REGEN
+// ─────────────────────────────────────────
+$('regen-btn').addEventListener('click', () => {
+  showScreen('screen-loading');
+  $('log-body').innerHTML = '';
+  $('prog-fill').style.width = '0%';
+  runPipeline();
+});
+</script>
+</body>
+</html>

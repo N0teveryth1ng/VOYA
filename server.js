@@ -1,8 +1,10 @@
 const express = require('express');
+const path = require('path');
 const app = express();
 
 app.use(express.json());
 app.use(express.static('.'));
+app.get('/', (_req, res) => res.sendFile(path.join(__dirname, 'mono.html')));
 
 app.post('/api/groq', async (req, res) => {
   const key = process.env.GROQ_KEY;

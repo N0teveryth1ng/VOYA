@@ -453,12 +453,6 @@ input[type=range].frange {
     <p class="config-lead">Describe your vibe. Our multi-agent AI builds a fully personalised, day-by-day itinerary — real places, real costs, real culture.</p>
 
     <div class="form-card">
-      <!-- API Key -->
-      <div class="fgroup">
-        <label class="flabel">Groq API Key <span style="color:var(--muted);font-weight:400;text-transform:none;letter-spacing:0">— saved locally, never sent anywhere except Groq</span></label>
-        <input type="password" class="fsel" id="key-input" placeholder="gsk_…" autocomplete="off" style="background-image:none;">
-      </div>
-
       <!-- Destination -->
       <div class="fgroup">
         <label class="flabel">Destination</label>
@@ -632,15 +626,9 @@ input[type=range].frange {
 const GROQ_MODEL = 'llama-3.3-70b-versatile';
 
 const state = {
-  dest: '', days: 3, budget: 'Balanced', vibe: '', apiKey: '',
+  dest: '', days: 3, budget: 'Balanced', vibe: '',
   itinerary: null, activeDay: 0, chatHistory: [], budgetTotal: 0
 };
-
-// Pre-fill key from localStorage
-window.addEventListener('DOMContentLoaded', () => {
-  const saved = localStorage.getItem('groq_key');
-  if (saved) $('key-input').value = saved;
-});
 
 // ─────────────────────────────────────────
 //  UTILS
@@ -674,18 +662,11 @@ document.querySelectorAll('.bpill').forEach(p => {
 });
 
 $('deploy-btn').addEventListener('click', () => {
-  const key = $('key-input').value.trim();
-  if (!key || !key.startsWith('gsk_')) {
-    $('key-input').focus(); $('key-input').style.borderColor = 'var(--rose)'; return;
-  }
-  $('key-input').style.borderColor = '';
   const dest = $('dest-input').value.trim();
   if (!dest) { $('dest-input').focus(); $('dest-input').style.borderColor = 'var(--rose)'; return; }
   $('dest-input').style.borderColor = '';
-  state.apiKey = key;
   state.dest = dest;
   state.vibe = $('vibe-input').value.trim();
-  localStorage.setItem('groq_key', key);
   $('term-name').textContent = `agent-network · ${state.dest.toLowerCase().replace(/\s+/g,'-')}-${state.days}d`;
   showScreen('screen-loading');
   runPipeline();
@@ -759,9 +740,9 @@ Return ONLY valid JSON — no markdown, no explanation, no backticks:
 Exactly ${state.days} days, 5-6 activities each. Make it vivid, specific, locally authentic.`;
 
   try {
-    const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    const res = await fetch('/api/groq', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${state.apiKey}` },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         model: GROQ_MODEL,
         max_tokens: 4000,
@@ -989,9 +970,9 @@ async function sendChat() {
 
   try {
     const sysMsg = { role: 'system', content: `You are a knowledgeable travel concierge for a ${state.days}-day trip to ${state.dest} on a ${state.budget} budget. Traveler vibe: "${state.vibe || 'balanced culture and food'}". Be concise, warm, and locally specific. Max 2-3 sentences.` };
-    const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    const res = await fetch('/api/groq', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${state.apiKey}` },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         model: GROQ_MODEL,
         max_tokens: 350,
